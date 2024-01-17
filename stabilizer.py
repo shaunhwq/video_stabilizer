@@ -103,6 +103,8 @@ if __name__ == "__main__":
     assert os.path.exists(args.input_path)
     assert is_same_extension(args.input_path, ".mp4")
     assert is_same_extension(args.output_path, ".mp4")
+    temp_dir = os.path.join(os.getcwd(), "temp")
+    os.makedirs(temp_dir, exist_ok=True)
 
     # File IO
     cap = cv2.VideoCapture(args.input_path)
@@ -146,8 +148,9 @@ if __name__ == "__main__":
             kp_1, desc_1 = sift_helper.detect_and_compute(cropped_img)
 
             # Create instance of writer since now we know what the desired output size is
+            temp_out_video_path = os.path.join(temp_dir, os.path.basename(args.output_path))
             writer = cv2.VideoWriter(
-                args.output_path,
+                temp_out_video_path,
                 cv2.VideoWriter_fourcc(*"mp4v"),
                 cap.get(cv2.CAP_PROP_FPS),
                 (cropped_shape[1] * 2, cropped_shape[0] * 2),  # Because we pyrDown earlier
@@ -160,6 +163,11 @@ if __name__ == "__main__":
         kp_n, desc_n = sift_helper.detect_and_compute(scaled_frame)
 
         h_matrix = sift_helper.match_points(kp_1, desc_1, kp_n, desc_n)
+
+        if h_matrix is None:
+            writer.release()
+            os.remove(temp_out_video_path)
+            sys.exit("Unable to predict homography matrix, please try again with another crop with more features")
 
         # To account for usage of scaled image
         h_matrix[0, 2] *= 2
@@ -176,8 +184,19 @@ if __name__ == "__main__":
         cv2.imshow("Warped", np.hstack([cropped_img, warped_region]))
         key = cv2.waitKey(1)
         if key & 255 == 27:
-            break
+            writer.release()
+            os.remove(temp_out_video_path)
+            sys.exit("User terminated the program.")
 
     cap.release()
     writer.release()
     cv2.destroyAllWindows()
+
+    temp_src_audio_path = os.path.join(temp_dir, 'src_audio.mp3')
+
+    # Extract and copy audio over to the source image
+    os.system(f"ffmpeg -y -i {args.input_path} -q:a 0 -map a {temp_src_audio_path}")
+    os.system(f"ffmpeg -y -i {temp_out_video_path} -i {temp_src_audio_path} -c:v copy -c:a aac -strict experimental {args.output_path}")
+
+    os.remove(temp_out_video_path)
+    os.remove(temp_src_audio_path)
