@@ -1,18 +1,22 @@
 # Video Stabilizer
 
-A video stabilizer using Sift features in a night. Sadly I was unable to find a free stabilization app to help me stabilize my climbing videos the way I want it so I guess I gotta write one myself.
+A video stabilizer using SIFT features. Sadly I was unable to find a free stabilization app to help me stabilize my climbing videos the way I want it so I guess I gotta write one myself.
 
-Basically this app finds the selected region in subsequent frames, and warps it back to the first frame using perspective transformation. Then we write the warped frames to the output file before and copy the audio over from the source.
+Main Operation:
+1. Select region of interest
+2. Get features in region using SIFT, store it
+3. For each subsequent frame to end of video, get features and match with first frame features, warp back to first image.
+4. Store each warped frame
+5. Transfer audio from source to final video
 
-To speed things up we apply a pyrDown to reduce resolution by 2, since most phone videos capture video at a high resolution anyway. Helps to reduce noise since it applies a Gaussian blur as well, probably a better matching outcome.
-
-Before using...
-1. Your cropped needs to have some interesting, unchanging features (the more the better the alignment)
-2. You want to do video stabilization fixed to the selected crop
-3. Object of interest is very far away or camera is panning or tilting without moving (homography assumption)
-4. Cropped region must be in camera view throughout the entire video (unless you don't care about black regions)
-5. Input video size should not be too small since we further downsize it, suspect that your final video might have some shaking effect due to poor matching.
-6. Output might not a perfectly stable video, personally observed some temporal artifacts. Depends on window and input video.
+| Considerations | Remarks |
+| --- | --- |
+| Selected region should have some interesting, unchanging features | Features are used to perform feature warping, if many moving features crop may be aligned to the moving object. |
+| Video stabilized to original selected region | Currently only supports warping to original region. |
+| Object of interest is far away or camera is panning/tilting without moving much | The transformation between two images can be characterized by a homography transformation if it meets the criteria |
+| Cropped region should be in camera view throughout the video | Black regions will appear otherwise |
+| Video resolution should be large enough | We further downsize the image by factor of 2 to improve processing speed, suspect could have poor matching which could lead to temporal inconsistencies in the video |
+| Could have some temporal artifacts | Matching might not have been done perfectly, across all frames. Depends on size of selected window, features in window, etc |
 
 ## Installation
 
@@ -50,9 +54,9 @@ e.g.
 python3 stabilizer.py -i input.mp4 -o output.mp4
 ```
 
-### Copying audio from original and use it on output
+## Avenues for improvement
 
-```
-ffmpeg -i input.mp4 -q:a 0 -map a input_video_audio.mp3
-ffmpeg -i stabilizer_output.mp4 -i input_video_audio.mp3 -c:v copy -c:a aac -strict experimental output.mp4
-```
+1. Let user choose downsize factor, super large images x2 not enough.
+2. Add other feature matching options (GFTT with LK optical flow, ORB features etc)
+3. Use other video writing libraries for better output video quality
+4. Pyramidal homography estimation with weighted averaging to merge the obtained homography matrix?
