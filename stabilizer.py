@@ -111,7 +111,7 @@ if __name__ == "__main__":
                 temp_out_video_path,
                 cv2.VideoWriter_fourcc(*"mp4v"),
                 cap.get(cv2.CAP_PROP_FPS),
-                cropped_img.shape[:2],
+                cropped_img.shape[:2][::-1],
             )
             continue
 
@@ -144,13 +144,10 @@ if __name__ == "__main__":
             os.remove(temp_out_video_path)
             sys.exit("User terminated the program.")
 
+    cv2.destroyAllWindows()
     cap.release()
     writer.release()
-    cv2.destroyAllWindows()
 
     # Extract and copy audio over to the source image
-    temp_src_audio_path = os.path.join(temp_dir, 'src_audio.mp3')
-    os.system(f"ffmpeg -y -i {args.input_path} -q:a 0 -map a {temp_src_audio_path}")
-    os.system(f"ffmpeg -y -i {temp_out_video_path} -i {temp_src_audio_path} -c:v copy -c:a aac -strict experimental {args.output_path}")
-
+    os.system(f"ffmpeg -y -loglevel error -i {args.input_path} -i {temp_out_video_path} -filter_complex \"[0:a]aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[audio]\" -map 1:v -map [audio] -c:v copy -c:a aac -strict experimental {args.output_path}")
     os.remove(temp_out_video_path)
