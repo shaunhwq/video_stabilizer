@@ -1,11 +1,12 @@
 import os
 import sys
 import argparse
-from typing import List, Tuple, Optional
 
 import cv2
 import numpy as np
 from tqdm import tqdm
+
+import utils
 
 
 class SiftHelper:
@@ -47,62 +48,19 @@ class SiftHelper:
         return warped_image
 
 
-def get_subwindow(image: np.array, window_name: str = "Select Rectangle") -> Optional[List[Tuple[float]]]:
-    """
-    Prompts user to select 2 points on an image
-
-    :param image: Image to select the points on
-    :param window_name: Name of the prompt window
-    :returns: selected 2 points
-    """
-    selected_pts = []
-
-    def on_mouse_clicked(event, x, y, flags, param):
-        nonlocal selected_pts
-        if event == cv2.EVENT_LBUTTONDOWN:
-            if len(selected_pts) < 2:
-                selected_pts.append((x, y))
-        if event == cv2.EVENT_RBUTTONDOWN:
-            selected_pts = []
-
-    cv2.namedWindow(window_name, cv2.WINDOW_AUTOSIZE)
-    cv2.setMouseCallback(window_name, on_mouse_clicked)
-
-    while True:
-        copied = image.copy()
-
-        cv2.putText(copied, "Select 2 points", (25, 25), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255, 255, 255), 1)
-        for point in selected_pts:
-            cv2.circle(copied, point, 5, (255, 255, 255), -1)
-        if len(selected_pts) == 2:
-            cv2.rectangle(copied, selected_pts[0], selected_pts[1], (255, 255, 255), 2)
-        cv2.imshow(window_name, copied)
-        key = cv2.waitKey(1)
-        if key & 255 == 32:
-            cv2.destroyWindow(window_name)
-            return selected_pts
-        elif key & 255 == 27:
-            break
-
-    cv2.destroyWindow(window_name)
-    return None
-
-
-def is_same_extension(file_path: str, extension: str):
-    name, ext = os.path.splitext(file_path)
-    return ext == extension
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--input_path", help="Path to input video", required=True)
-    parser.add_argument("-o", "--output_path", help="Desired output path", required=True)
+    parser.add_argument("-i", "--input_path", help="Path to input video", required=True, type=str)
+    parser.add_argument("-o", "--output_path", help="Desired output path", required=True, type=str)
+    parser.add_argument("-s", "--scale_power", help="Scale will be 2 to power of args.scale_power", default=0, type=int)
     args = parser.parse_args()
 
-    # File path checks
+    # Parameter checks
     assert os.path.exists(args.input_path)
-    assert is_same_extension(args.input_path, ".mp4")
-    assert is_same_extension(args.output_path, ".mp4")
+    assert utils.is_same_extension(args.input_path, ".mp4")
+    assert utils.is_same_extension(args.output_path, ".mp4")
+    assert args.scale_power >= 0 and isinstance(args.scale_power, int)
+
     temp_dir = os.path.join(os.getcwd(), "temp")
     os.makedirs(temp_dir, exist_ok=True)
 
@@ -128,24 +86,24 @@ if __name__ == "__main__":
         if not ret:
             break
 
-        scaled_frame = cv2.pyrDown(frame)
+        scaled_frame = frame
+        scaled_frame = utils.pyr_scale_image(scaled_frame, -1 * args.scale_power)
 
         if kp_1 is None:
-            rect_pts = get_subwindow(scaled_frame)
+            rect_pts = utils.get_subwindow(scaled_frame)
             if rect_pts is None:
                 sys.exit("User terminated the program.")
 
-            # Get even sized crop (easier time later since we can just x2 without problems)
+            # Crop selected region
             (x1, y1), (x2, y2) = rect_pts
-            if (x2 - x1) % 2 != 0:
-                x2 -= 1
-            if (y2 - y1) % 2 != 0:
-                y2 -= 1
-
             cropped_img = scaled_frame[y1: y2, x1: x2, ...]
             cropped_shape = cropped_img.shape
 
+            # Get keypoints and descriptors
             kp_1, desc_1 = sift_helper.detect_and_compute(cropped_img)
+
+            # Scale cropped back to original size frame's scale for getting the size of warped image later.
+            cropped_img = utils.pyr_scale_image(cropped_img, args.scale_power)
 
             # Create instance of writer since now we know what the desired output size is
             temp_out_video_path = os.path.join(temp_dir, os.path.basename(args.output_path))
@@ -153,11 +111,8 @@ if __name__ == "__main__":
                 temp_out_video_path,
                 cv2.VideoWriter_fourcc(*"mp4v"),
                 cap.get(cv2.CAP_PROP_FPS),
-                (cropped_shape[1] * 2, cropped_shape[0] * 2),  # Because we pyrDown earlier
+                cropped_img.shape[:2],
             )
-
-            # So we can concatenate with normal sized image later
-            cropped_img = cv2.pyrUp(cropped_img)
             continue
 
         kp_n, desc_n = sift_helper.detect_and_compute(scaled_frame)
@@ -170,18 +125,19 @@ if __name__ == "__main__":
             sys.exit("Unable to predict homography matrix, please try again with another crop with more features")
 
         # To account for usage of scaled image
-        h_matrix[0, 2] *= 2
-        h_matrix[1, 2] *= 2
-        h_matrix[2, 0] /= 2
-        h_matrix[2, 1] /= 2
+        h_matrix = utils.scale_homography_matrix(h_matrix, 2 ** args.scale_power)
 
-        warped_region = sift_helper.backwarp_image(frame, (cropped_shape[0] * 2, cropped_shape[1] * 2), h_matrix)
-
+        warped_region = sift_helper.backwarp_image(frame, cropped_img.shape[:2], h_matrix)
         writer.write(warped_region)
 
         pbar.update(1)
 
-        cv2.imshow("Warped", np.hstack([cropped_img, warped_region]))
+        #scaled_cropped_frame = scaled_frame[y1: y2, x1: x2, ...]
+        #print(scaled_frame.shape, scaled_cropped_frame.shape, warped_region.shape)
+        cropped_frame = scaled_frame[y1: y2, x1: x2, ...]
+        cropped_frame = utils.pyr_scale_image(cropped_frame, args.scale_power)
+        cv2.imshow("Cropped", np.hstack([cropped_frame, cropped_img, warped_region]))
+
         key = cv2.waitKey(1)
         if key & 255 == 27:
             writer.release()
@@ -192,11 +148,9 @@ if __name__ == "__main__":
     writer.release()
     cv2.destroyAllWindows()
 
-    temp_src_audio_path = os.path.join(temp_dir, 'src_audio.mp3')
-
     # Extract and copy audio over to the source image
+    temp_src_audio_path = os.path.join(temp_dir, 'src_audio.mp3')
     os.system(f"ffmpeg -y -i {args.input_path} -q:a 0 -map a {temp_src_audio_path}")
     os.system(f"ffmpeg -y -i {temp_out_video_path} -i {temp_src_audio_path} -c:v copy -c:a aac -strict experimental {args.output_path}")
 
     os.remove(temp_out_video_path)
-    os.remove(temp_src_audio_path)
