@@ -17,7 +17,6 @@ Main Operation:
 | Video stabilized to original selected region | Currently only supports warping to original region. |
 | Object of interest is far away or camera is panning/tilting without moving much | The transformation between two images can be characterized by a homography transformation if it meets the criteria |
 | Cropped region should be in camera view throughout the video | Black regions will appear otherwise |
-| Video resolution should be large enough | We further downsize the image by factor of 2 to improve processing speed, suspect could have poor matching which could lead to temporal inconsistencies in the video |
 | Could have some temporal artifacts | Matching might not have been done perfectly, across all frames. Depends on size of selected window, features in window, etc |
 
 ## Installation
