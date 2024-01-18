@@ -40,7 +40,7 @@ For others, refer to ffmpeg documentation.
 ### Running the script
 ```
 python3 stabilizer.py -h
-usage: stabilizer.py [-h] -i INPUT_PATH -o OUTPUT_PATH
+usage: stabilizer.py [-h] -i INPUT_PATH -o OUTPUT_PATH [-s SCALE_POWER]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -48,6 +48,8 @@ optional arguments:
                         Path to input video
   -o OUTPUT_PATH, --output_path OUTPUT_PATH
                         Desired output path
+  -s SCALE_POWER, --scale_power SCALE_POWER
+                        For improving computational speed via downsizing matching images.
 ```
 
 e.g.
@@ -58,7 +60,6 @@ python3 stabilizer.py -i input.mp4 -o output.mp4
 
 ## Avenues for improvement
 
-1. Let user choose downsize factor, super large images x2 not enough.
-2. Add other feature matching options (GFTT with LK optical flow, ORB features etc)
-3. Use other video writing libraries for better output video quality
-4. Pyramidal homography estimation with weighted averaging to merge the obtained homography matrix?
+1. Add other feature matching options (GFTT with LK optical flow, ORB features etc)
+2. Use other video writing libraries for better output video quality
+3. Pyramidal homography estimation with weighted averaging to merge the obtained homography matrix?

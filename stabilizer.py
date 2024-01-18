@@ -52,7 +52,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--input_path", help="Path to input video", required=True, type=str)
     parser.add_argument("-o", "--output_path", help="Desired output path", required=True, type=str)
-    parser.add_argument("-s", "--scale_power", help="Scale will be 2 to power of args.scale_power", default=0, type=int)
+    parser.add_argument("-s", "--scale_power", help="For improving computational speed via downsizing matching images.", default=0, type=int)
     args = parser.parse_args()
 
     # Parameter checks
