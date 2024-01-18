@@ -1,5 +1,7 @@
 # Video Stabilizer
 
+![](documentation_images/demo.gif)
+
 A video stabilizer using SIFT features. Sadly I was unable to find a free stabilization app to help me stabilize my climbing videos the way I want it so I guess I gotta write one myself.
 
 Main Operation:
